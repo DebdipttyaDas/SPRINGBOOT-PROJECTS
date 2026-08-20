@@ -18,12 +18,17 @@ import {
   Radio,
   ArrowUpRight,
   ExternalLink,
-  ChevronDown
+  ChevronDown,
+  User,
+  Shield,
+  LogIn,
+  LogOut
 } from 'lucide-react';
 import CivicMap from './components/CivicMap';
 import ReportIssueModal from './components/ReportIssueModal';
 import IssueDetailView from './components/IssueDetailView';
-import { fetchIssues, fetchStats } from './services/api';
+import AuthModal from './components/AuthModal';
+import { fetchIssues, fetchStats, getStoredUser, logoutUser, getMe } from './services/api';
 import { CATEGORIES, CIVIC_WARDS } from './data/civicData';
 
 export default function App() {
@@ -32,13 +37,14 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [selectedIssue, setSelectedIssue] = useState(null);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState(getStoredUser());
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [selectedUrgency, setSelectedUrgency] = useState('ALL');
   const [selectedWard, setSelectedWard] = useState('ALL');
-  const [activeTab, setActiveTab] = useState('map'); // 'map' or 'feed' or 'wards'
 
   const loadData = async () => {
     setLoading(true);
@@ -56,9 +62,22 @@ export default function App() {
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 15000); // Live poll
+    // Verify token validity on load
+    getMe().then(user => {
+      if (user) setCurrentUser(user);
+    });
+    const interval = setInterval(loadData, 15000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleAuthSuccess = (user) => {
+    setCurrentUser(user);
+  };
+
+  const handleLogout = () => {
+    logoutUser();
+    setCurrentUser(null);
+  };
 
   const handleIssueCreated = (newIssue) => {
     setIssues(prev => [newIssue, ...prev]);
@@ -95,6 +114,8 @@ export default function App() {
   const inProgressCount = issues.filter(i => i.status === 'IN_PROGRESS').length;
   const resolvedCount = issues.filter(i => i.status === 'RESOLVED').length;
 
+  const isAdmin = currentUser?.role === 'ROLE_ADMIN';
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-emerald-500 selection:text-slate-950">
 
@@ -110,15 +131,53 @@ export default function App() {
                 CivicEye AI
               </h1>
               <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                v2.4 Geo-AI
+                JWT Auth Active
               </span>
             </div>
             <p className="text-[11px] text-slate-400">Autonomous Civic Hazard Detection & Ward Dispatch Engine</p>
           </div>
         </div>
 
-        {/* Action Button */}
+        {/* User Profile & Action Buttons */}
         <div className="flex items-center space-x-3">
+          {currentUser ? (
+            <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2 bg-slate-950/80 border border-slate-800 px-3 py-1.5 rounded-xl text-xs">
+                {isAdmin ? (
+                  <div className="p-1 rounded bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                    <Shield className="w-3.5 h-3.5" />
+                  </div>
+                ) : (
+                  <div className="p-1 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    <User className="w-3.5 h-3.5" />
+                  </div>
+                )}
+                <div className="text-left leading-none">
+                  <div className="font-semibold text-slate-200">{currentUser.name}</div>
+                  <div className={`text-[10px] ${isAdmin ? 'text-purple-400' : 'text-emerald-400'}`}>
+                    {isAdmin ? 'Ward Admin' : 'Verified Citizen'}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={handleLogout}
+                title="Logout"
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border border-slate-700 transition cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setIsAuthModalOpen(true)}
+              className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition cursor-pointer"
+            >
+              <LogIn className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Sign In / Register</span>
+            </button>
+          )}
+
           <button
             onClick={() => setIsReportModalOpen(true)}
             className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-bold text-xs lg:text-sm shadow-lg shadow-emerald-500/25 transition transform active:scale-95 cursor-pointer"
@@ -168,7 +227,7 @@ export default function App() {
             </div>
             <div>
               <div className="text-xl font-bold text-purple-400">{CIVIC_WARDS.length} Wards</div>
-              <div className="text-[11px] text-slate-400 font-medium">Automated Routing Active</div>
+              <div className="text-[11px] text-slate-400 font-medium">MySQL + JWT Secured</div>
             </div>
           </div>
         </div>
@@ -177,7 +236,7 @@ export default function App() {
       {/* Main Content Layout */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-        {/* Left Column: Filter Sidebar & Issue Feed (5 cols on large screens) */}
+        {/* Left Column: Filter Sidebar & Issue Feed */}
         <div className="lg:col-span-5 space-y-4 flex flex-col">
 
           {/* Search & Category Filter Controls */}
@@ -254,7 +313,7 @@ export default function App() {
             <div className="flex items-center justify-between pb-2 px-2 border-b border-slate-800 text-xs text-slate-400 font-semibold">
               <span>CIVIC HAZARD LOGS ({filteredIssues.length})</span>
               <span className="text-[11px] text-emerald-400 flex items-center gap-1">
-                <Sparkles className="w-3 h-3" /> Live Feed
+                <Sparkles className="w-3 h-3" /> Live MySQL
               </span>
             </div>
 
@@ -333,7 +392,7 @@ export default function App() {
 
         </div>
 
-        {/* Right Column: Interactive Map & Detail View (7 cols) */}
+        {/* Right Column: Interactive Map & Detail View */}
         <div className="lg:col-span-7 space-y-6 flex flex-col">
 
           {/* Interactive Leaflet OpenStreetMap with Ward Polygons */}
@@ -349,6 +408,8 @@ export default function App() {
           {selectedIssue ? (
             <IssueDetailView
               issue={selectedIssue}
+              currentUser={currentUser}
+              onOpenAuth={() => setIsAuthModalOpen(true)}
               onClose={() => setSelectedIssue(null)}
               onUpdateStatus={handleStatusUpdated}
               onUpvote={handleUpvoted}
@@ -372,6 +433,13 @@ export default function App() {
         isOpen={isReportModalOpen}
         onClose={() => setIsReportModalOpen(false)}
         onIssueCreated={handleIssueCreated}
+      />
+
+      {/* Modal for Citizen / Admin Login */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onAuthSuccess={handleAuthSuccess}
       />
 
     </div>

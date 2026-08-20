@@ -1,10 +1,13 @@
 package com.civicai.backend.config;
 
 import com.civicai.backend.entity.CivicIssue;
+import com.civicai.backend.entity.User;
 import com.civicai.backend.repository.CivicIssueRepository;
+import com.civicai.backend.repository.UserRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -13,8 +16,33 @@ import java.util.Arrays;
 public class DataSeeder {
 
     @Bean
-    CommandLineRunner seedIssues(CivicIssueRepository issueRepository) {
+    CommandLineRunner seedData(CivicIssueRepository issueRepository, UserRepository userRepository, PasswordEncoder passwordEncoder) {
         return args -> {
+            // Seed Admin and Citizen users if none exist
+            if (userRepository.count() == 0) {
+                User admin = User.builder()
+                        .name("Er. Rajesh Kumar")
+                        .email("admin@civic.gov")
+                        .password(passwordEncoder.encode("admin123"))
+                        .role("ROLE_ADMIN")
+                        .phone("+91 98450 11201")
+                        .department("Chief Civic Ward Officer & Road Infrastructure")
+                        .wardNumber("Ward 150 - Bellandur")
+                        .build();
+
+                User citizen = User.builder()
+                        .name("Aravind Swaminathan")
+                        .email("citizen@gmail.com")
+                        .password(passwordEncoder.encode("citizen123"))
+                        .role("ROLE_CITIZEN")
+                        .phone("+91 98765 43210")
+                        .wardNumber("Ward 150 - Bellandur")
+                        .build();
+
+                userRepository.saveAll(Arrays.asList(admin, citizen));
+            }
+
+            // Seed sample issues if none exist
             if (issueRepository.count() == 0) {
                 CivicIssue issue1 = CivicIssue.builder()
                         .title("Deep Crater Pothole on Outer Ring Road under Flyover")

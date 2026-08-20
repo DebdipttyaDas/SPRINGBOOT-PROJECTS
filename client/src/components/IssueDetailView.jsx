@@ -14,15 +14,19 @@ import {
   Phone,
   Mail,
   Flame,
+  Lock,
   ArrowUpRight
 } from 'lucide-react';
 import { upvoteIssue, updateIssueStatus } from '../services/api';
 
-export default function IssueDetailView({ issue, onClose, onUpdateStatus, onUpvote }) {
+export default function IssueDetailView({ issue, currentUser, onOpenAuth, onClose, onUpdateStatus, onUpvote }) {
   const [updating, setUpdating] = useState(false);
   const [upvoted, setUpvoted] = useState(false);
+  const [statusError, setStatusError] = useState('');
 
   if (!issue) return null;
+
+  const isAdmin = currentUser?.role === 'ROLE_ADMIN';
 
   const handleUpvote = async () => {
     if (upvoted) return;
@@ -34,12 +38,22 @@ export default function IssueDetailView({ issue, onClose, onUpdateStatus, onUpvo
   };
 
   const handleStatusChange = async (newStatus) => {
+    if (!isAdmin) {
+      setStatusError('Only authenticated Municipal Ward Officers / Admins can change status.');
+      return;
+    }
+    setStatusError('');
     setUpdating(true);
-    const sampleProof = newStatus === 'RESOLVED' ? 'https://images.unsplash.com/photo-1530587191325-3db32d826c18?auto=format&fit=crop&w=1000&q=80' : '';
-    const updated = await updateIssueStatus(issue.id, newStatus, sampleProof);
-    setUpdating(false);
-    if (updated && onUpdateStatus) {
-      onUpdateStatus(updated);
+    try {
+      const sampleProof = newStatus === 'RESOLVED' ? 'https://images.unsplash.com/photo-1530587191325-3db32d826c18?auto=format&fit=crop&w=1000&q=80' : '';
+      const updated = await updateIssueStatus(issue.id, newStatus, sampleProof);
+      if (updated && onUpdateStatus) {
+        onUpdateStatus(updated);
+      }
+    } catch (err) {
+      setStatusError(err.message || 'Status update failed.');
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -120,7 +134,7 @@ export default function IssueDetailView({ issue, onClose, onUpdateStatus, onUpvo
           {/* AI Reasoning Box */}
           <div className="p-4 rounded-xl bg-gradient-to-br from-slate-950 to-slate-900 border border-emerald-500/30 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+              <span className="text-xs font-bold text-emerald-400 uppercase tracking-wide flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4" /> AI Severity & Diagnostic Breakdown
               </span>
               <span className="text-xs font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
@@ -168,6 +182,21 @@ export default function IssueDetailView({ issue, onClose, onUpdateStatus, onUpvo
 
       </div>
 
+      {/* Error Notice */}
+      {statusError && (
+        <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center justify-between">
+          <span>{statusError}</span>
+          {!isAdmin && (
+            <button
+              onClick={onOpenAuth}
+              className="text-xs underline font-semibold text-rose-300 hover:text-white"
+            >
+              Sign in as Admin
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Footer Controls: Upvote + Officer Status Toggles */}
       <div className="pt-4 border-t border-slate-800 flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
@@ -192,23 +221,40 @@ export default function IssueDetailView({ issue, onClose, onUpdateStatus, onUpvo
 
         {/* Civic Officer Workflow Action Bar */}
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-400 font-medium">Ward Officer Action:</span>
+          {isAdmin ? (
+            <>
+              <span className="text-xs text-purple-400 font-semibold flex items-center gap-1">
+                <Building2 className="w-3 h-3" /> Ward Officer Action:
+              </span>
 
-          <button
-            onClick={() => handleStatusChange('IN_PROGRESS')}
-            disabled={updating || issue.status === 'IN_PROGRESS'}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 transition cursor-pointer"
-          >
-            Dispatch Team
-          </button>
+              <button
+                onClick={() => handleStatusChange('IN_PROGRESS')}
+                disabled={updating || issue.status === 'IN_PROGRESS'}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 transition cursor-pointer"
+              >
+                Dispatch Team
+              </button>
 
-          <button
-            onClick={() => handleStatusChange('RESOLVED')}
-            disabled={updating || issue.status === 'RESOLVED'}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold transition shadow-lg shadow-emerald-600/20 cursor-pointer"
-          >
-            Mark Resolved & Upload Proof
-          </button>
+              <button
+                onClick={() => handleStatusChange('RESOLVED')}
+                disabled={updating || issue.status === 'RESOLVED'}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold transition shadow-lg shadow-emerald-600/20 cursor-pointer"
+              >
+                Mark Resolved & Upload Proof
+              </button>
+            </>
+          ) : (
+            <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-lg border border-slate-800">
+              <Lock className="w-3.5 h-3.5 text-slate-400" />
+              <span>Officer Actions Locked</span>
+              <button
+                onClick={onOpenAuth}
+                className="text-xs text-emerald-400 hover:underline font-semibold ml-1 cursor-pointer"
+              >
+                Sign in as Admin
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
