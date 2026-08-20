@@ -1,24 +1,26 @@
-# Build stage with Maven and Eclipse Temurin JDK 17
-FROM maven:3.9.6-eclipse-temurin-17 AS build
-WORKDIR /app
+# Stage 1: Build JAR using Maven
+FROM maven:3.9.6-eclipse-temurin-17 AS builder
+WORKDIR /build
 
 # Copy pom.xml and download dependencies
 COPY pom.xml .
-RUN mvn dependency:go-offline -B
+RUN mvn dependency:go-offline -B || true
 
-# Copy source code and build jar
+# Copy all source files and package application (skipping unit tests during container build)
 COPY src ./src
-RUN mvn clean package -DskipTests
+RUN mvn clean package -DskipTests -B
 
-# Runtime stage
-FROM eclipse-temurin:17-jre-alpine
+# Stage 2: Minimal Java Runtime
+FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
 
-# Expose port (Render automatically provides PORT environment variable)
+# Expose container port
 EXPOSE 8080
 
-# Copy built JAR from build stage
-COPY --from=build /app/target/*.jar app.jar
+# Copy generated executable jar
+COPY --from=builder /build/target/*.jar app.jar
 
-# Run Spring Boot application
-ENTRYPOINT ["java", "-Djava.security.egd=file:/dev/./urandom", "-jar", "app.jar"]
+# JVM options optimized for cloud free tier containers
+ENV JAVA_OPTS="-Xmx384m -Xss512k -XX:+UseSerialGC"
+
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -Djava.security.egd=file:/dev/./urandom -Dserver.port=${PORT:-8080} -jar app.jar"]

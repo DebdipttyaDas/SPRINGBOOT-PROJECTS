@@ -3,7 +3,7 @@ services:
   - type: web
     name: civic-eye-backend
     env: docker
-    dockerfilePath: server/Dockerfile
+    dockerfilePath: Dockerfile
     dockerContext: server
     plan: free
     region: oregon
@@ -13,17 +13,4 @@ services:
       - key: PORT
         value: 8080
       - key: SPRING_DATASOURCE_URL
-        fromDatabase:
-          name: civic-eye-db
-          property: connectionString
-      # If using external MySQL (Aiven/Railway/PlanetScale/Render Postgres), add JDBC credentials below:
-      # - key: SPRING_DATASOURCE_USERNAME
-      #   value: your_db_user
-      # - key: SPRING_DATASOURCE_PASSWORD
-      #   value: your_db_password
-
-databases:
-  # Free managed PostgreSQL database on Render (Spring Boot JPA is auto-compatible)
-  - name: civic-eye-db
-    plan: free
-    region: oregon
+        value: jdbc:h2:mem:civicdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
